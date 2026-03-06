@@ -45,4 +45,3 @@ jobs:
         with:
           name: workworth-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
-        with:
