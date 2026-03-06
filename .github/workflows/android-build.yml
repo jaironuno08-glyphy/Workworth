@@ -30,19 +30,20 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      
+
       - name: Setup Capacitor Android
         run: |
-                npm install @capacitor/core @capacitor/cli @capacitor/android
-                npx cap add android || true
-                npx cap sync
-      
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npx cap add android || true
+          npx cap sync android
+
       - name: Build APK
-       run: |
-            ls -la
-            cd android
-            ls -la
-            ./gradlew assembleDebug
+        run: |
+          ls -la
+          cd android
+          ls -la
+          ./gradlew assembleDebug
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
