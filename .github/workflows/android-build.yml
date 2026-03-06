@@ -31,16 +31,16 @@ jobs:
           distribution: temurin
           java-version: 17
 
-         
-             npm install @capacitor/core @capacitor/cli @capacitor/android
-             npx cap init WorkWorth com.workworth.app --web-dir=dist
-             npx cap add android
-             npx cap sync android
+      - name: Setup Capacitor
+        run: |
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init WorkWorth com.workworth.app --web-dir=dist
+          npx cap add android
+          npx cap sync android
+
       - name: Build APK
         run: |
-          ls -la
           cd android
-          ls -la
           ./gradlew assembleDebug
 
       - name: Upload APK
