@@ -1,16 +1,27 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  BrowserRouter,
-  Routes,
-  Route,
-  useNavigate,
-  useLocation,
-  Navigate,
-} from "react-router-dom";
+  Play,
+  Pause,
+  RotateCcw,
+  Wallet,
+  CalendarDays,
+  Coins,
+  User,
+  Settings,
+  TrendingUp,
+  DollarSign,
+  Target,
+  Sparkles,
+  Trophy,
+  Home,
+} from "lucide-react";
+import {
+  CircularProgressbar,
+  buildStyles,
+} from "react-circular-progressbar";
+import "react-circular-progressbar/dist/styles.css";
 
-const LS_KEY = "workworth_dark_neon_v2";
-
-/* ---------------- helpers ---------------- */
+const LS_KEY = "workworth_neon_v1";
 
 function money(n) {
   const v = Number.isFinite(n) ? n : 0;
@@ -21,1228 +32,679 @@ function money(n) {
   });
 }
 
+function num(n, digits = 2) {
+  const v = Number.isFinite(n) ? n : 0;
+  return v.toFixed(digits);
+}
+
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
-function nowMs() {
-  return Date.now();
+function getTodayIndex() {
+  const day = new Date().getDay();
+  return day === 0 ? 6 : day - 1; // Mon=0 ... Sun=6
 }
 
-function formatClock(seconds) {
-  const s = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(
-    sec
-  ).padStart(2, "0")}`;
+function weeklyHoursFromSchedule(schedule) {
+  return schedule.reduce((sum, s) => {
+    const start = Number(s.start) || 0;
+    const end = Number(s.end) || 0;
+    return sum + Math.max(0, end - start);
+  }, 0);
 }
 
-function hoursFromSeconds(seconds) {
-  return seconds / 3600;
-}
+function AppInner() {
+  const [page, setPage] = useState("home");
 
-function getTodayKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-}
+  const [profileName, setProfileName] = useState("Jairo");
+  const [hourlyRate, setHourlyRate] = useState(22);
+  const [taxRate, setTaxRate] = useState(22);
+  const [wwcPerDollar, setWwcPerDollar] = useState(10);
 
-function firstNameOnly(name) {
-  const cleaned = String(name || "").trim();
-  if (!cleaned) return "Worker";
-  return cleaned.split(" ")[0];
-}
+  const [isWorking, setIsWorking] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-/* ---------------- app shell ---------------- */
+  const [lifetimeGross, setLifetimeGross] = useState(0);
+  const [lifetimeNet, setLifetimeNet] = useState(0);
+  const [lifetimeWWC, setLifetimeWWC] = useState(0);
+  const [bankedWWC, setBankedWWC] = useState(0);
+  const [streakDays, setStreakDays] = useState(1);
+  const [lastBankDate, setLastBankDate] = useState("");
 
-export default function App() {
-  return (
-    <BrowserRouter>
-      <WorkWorthApp />
-    </BrowserRouter>
-  );
-}
+  const [weeklyGoal, setWeeklyGoal] = useState(880);
 
-function WorkWorthApp() {
-  const [state, setState] = useState(() => {
+  const [schedule, setSchedule] = useState([
+    { day: "Mon", start: 11, end: 19.5 },
+    { day: "Tue", start: 0, end: 0 },
+    { day: "Wed", start: 0, end: 0 },
+    { day: "Thu", start: 11, end: 19.5 },
+    { day: "Fri", start: 12, end: 20.5 },
+    { day: "Sat", start: 11, end: 19.5 },
+    { day: "Sun", start: 11, end: 19.5 },
+  ]);
+
+  useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
-      if (saved) {
-        return {
-          userName: saved.userName ?? "",
-          rate: saved.rate ?? 22,
-          withholding: saved.withholding ?? 18,
-          shiftGoalHours: saved.shiftGoalHours ?? 8,
-          weeklyGoalHours: saved.weeklyGoalHours ?? 40,
-          weeklyHoursWorked: saved.weeklyHoursWorked ?? 0,
-          lifetimeEarned: saved.lifetimeEarned ?? 0,
-          lifetimeWWC: saved.lifetimeWWC ?? 0,
-          streak: saved.streak ?? 0,
-          isWorking: saved.isWorking ?? false,
-          shiftStartMs: saved.shiftStartMs ?? null,
-          elapsedBeforeStart: saved.elapsedBeforeStart ?? 0,
-          coinRate: saved.coinRate ?? 10,
-          lastWorkDay: saved.lastWorkDay ?? getTodayKey(),
-        };
-      }
-    } catch {}
-    return {
-      userName: "",
-      rate: 22,
-      withholding: 18,
-      shiftGoalHours: 8,
-      weeklyGoalHours: 40,
-      weeklyHoursWorked: 0,
-      lifetimeEarned: 0,
-      lifetimeWWC: 0,
-      streak: 0,
-      isWorking: false,
-      shiftStartMs: null,
-      elapsedBeforeStart: 0,
-      coinRate: 10,
-      lastWorkDay: getTodayKey(),
-    };
-  });
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
 
-  const [tick, setTick] = useState(nowMs());
-
-  useEffect(() => {
-    localStorage.setItem(LS_KEY, JSON.stringify(state));
-  }, [state]);
-
-  useEffect(() => {
-    const t = setInterval(() => setTick(nowMs()), 250);
-    return () => clearInterval(t);
+      setProfileName(saved.profileName ?? "Jairo");
+      setHourlyRate(saved.hourlyRate ?? 22);
+      setTaxRate(saved.taxRate ?? 22);
+      setWwcPerDollar(saved.wwcPerDollar ?? 10);
+      setElapsedSeconds(saved.elapsedSeconds ?? 0);
+      setLifetimeGross(saved.lifetimeGross ?? 0);
+      setLifetimeNet(saved.lifetimeNet ?? 0);
+      setLifetimeWWC(saved.lifetimeWWC ?? 0);
+      setBankedWWC(saved.bankedWWC ?? 0);
+      setStreakDays(saved.streakDays ?? 1);
+      setLastBankDate(saved.lastBankDate ?? "");
+      setWeeklyGoal(saved.weeklyGoal ?? 880);
+      setSchedule(saved.schedule ?? schedule);
+      setPage(saved.page ?? "home");
+      setIsWorking(false);
+    } catch (err) {
+      console.error("Failed to load saved WorkWorth data:", err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const elapsedSeconds = useMemo(() => {
-    if (!state.isWorking || !state.shiftStartMs) {
-      return state.elapsedBeforeStart || 0;
-    }
-    return (
-      (state.elapsedBeforeStart || 0) +
-      Math.max(0, Math.floor((tick - state.shiftStartMs) / 1000))
-    );
-  }, [state.isWorking, state.shiftStartMs, state.elapsedBeforeStart, tick]);
+  useEffect(() => {
+    const data = {
+      profileName,
+      hourlyRate,
+      taxRate,
+      wwcPerDollar,
+      elapsedSeconds,
+      lifetimeGross,
+      lifetimeNet,
+      lifetimeWWC,
+      bankedWWC,
+      streakDays,
+      lastBankDate,
+      weeklyGoal,
+      schedule,
+      page,
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(data));
+  }, [
+    profileName,
+    hourlyRate,
+    taxRate,
+    wwcPerDollar,
+    elapsedSeconds,
+    lifetimeGross,
+    lifetimeNet,
+    lifetimeWWC,
+    bankedWWC,
+    streakDays,
+    lastBankDate,
+    weeklyGoal,
+    schedule,
+    page,
+  ]);
 
-  const gross = useMemo(() => {
-    return state.rate * hoursFromSeconds(elapsedSeconds);
-  }, [state.rate, elapsedSeconds]);
+  useEffect(() => {
+    if (!isWorking) return;
+    const timer = setInterval(() => {
+      setElapsedSeconds((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isWorking]);
 
-  const taxes = useMemo(
-    () => gross * (state.withholding / 100),
-    [gross, state.withholding]
+  const gross = useMemo(
+    () => (elapsedSeconds / 3600) * hourlyRate,
+    [elapsedSeconds, hourlyRate]
   );
+  const taxes = useMemo(() => gross * (taxRate / 100), [gross, taxRate]);
   const net = useMemo(() => gross - taxes, [gross, taxes]);
+  const perSecondGross = hourlyRate / 3600;
+  const perMinuteGross = hourlyRate / 60;
+  const totalWWCThisShift = net * wwcPerDollar;
+  const progressToGoal = clamp((gross / weeklyGoal) * 100, 0, 100);
 
-  const totalWWCThisShift = useMemo(
-    () => net * state.coinRate,
-    [net, state.coinRate]
-  );
+  const weeklyHours = weeklyHoursFromSchedule(schedule);
+  const weeklyGross = weeklyHours * hourlyRate;
+  const weeklyTaxes = weeklyGross * (taxRate / 100);
+  const weeklyNet = weeklyGross - weeklyTaxes;
 
-  const shiftProgress = useMemo(() => {
-    const goalSecs = state.shiftGoalHours * 3600;
-    if (!goalSecs) return 0;
-    return clamp(elapsedSeconds / goalSecs, 0, 1);
-  }, [elapsedSeconds, state.shiftGoalHours]);
+  const annualGross = weeklyGross * 52;
+  const projectedCareerGross = annualGross * 40;
+  const level = Math.floor(lifetimeWWC / 1000) + 1;
 
-  const weeklyProjectedGross = useMemo(
-    () => state.rate * state.weeklyGoalHours,
-    [state.rate, state.weeklyGoalHours]
-  );
-
-  const weeklyProjectedNet = useMemo(
-    () => weeklyProjectedGross * (1 - state.withholding / 100),
-    [weeklyProjectedGross, state.withholding]
-  );
-
-  const weeklyActualGross = useMemo(
-    () => state.rate * state.weeklyHoursWorked,
-    [state.rate, state.weeklyHoursWorked]
-  );
-
-  const weeklyActualNet = useMemo(
-    () => weeklyActualGross * (1 - state.withholding / 100),
-    [weeklyActualGross, state.withholding]
-  );
-
-  function startWork() {
-    if (state.isWorking) return;
-    setState((s) => ({
-      ...s,
-      isWorking: true,
-      shiftStartMs: nowMs(),
-      lastWorkDay: getTodayKey(),
-    }));
+  function formatHour(decimalHour) {
+    if (!decimalHour) return "—";
+    const h24 = Math.floor(decimalHour);
+    const mins = decimalHour % 1 === 0.5 ? "30" : "00";
+    const suffix = h24 >= 12 ? "PM" : "AM";
+    const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+    return `${h12}:${mins} ${suffix}`;
   }
 
-  function pauseWork() {
-    if (!state.isWorking) return;
-    const currentElapsed =
-      (state.elapsedBeforeStart || 0) +
-      Math.max(0, Math.floor((nowMs() - state.shiftStartMs) / 1000));
-
-    setState((s) => ({
-      ...s,
-      isWorking: false,
-      shiftStartMs: null,
-      elapsedBeforeStart: currentElapsed,
-    }));
+  function scheduleLine(entry) {
+    if (!entry.start || !entry.end) return "Off";
+    return `${formatHour(entry.start)} - ${formatHour(entry.end)}`;
   }
 
-  function endShift() {
-    const finalElapsed =
-      state.isWorking && state.shiftStartMs
-        ? (state.elapsedBeforeStart || 0) +
-          Math.max(0, Math.floor((nowMs() - state.shiftStartMs) / 1000))
-        : state.elapsedBeforeStart || 0;
+  function bankCoins() {
+    const today = new Date().toDateString();
+    let nextStreak = streakDays;
 
-    const finalGross = state.rate * hoursFromSeconds(finalElapsed);
-    const finalTaxes = finalGross * (state.withholding / 100);
-    const finalNet = finalGross - finalTaxes;
-    const finalWWC = finalNet * state.coinRate;
-    const finalHours = hoursFromSeconds(finalElapsed);
+    if (lastBankDate) {
+      const last = new Date(lastBankDate);
+      const now = new Date(today);
+      const diffDays = Math.round((now - last) / 86400000);
 
-    setState((s) => ({
-      ...s,
-      isWorking: false,
-      shiftStartMs: null,
-      elapsedBeforeStart: 0,
-      weeklyHoursWorked: Number((s.weeklyHoursWorked + finalHours).toFixed(2)),
-      lifetimeEarned: Number((s.lifetimeEarned + finalNet).toFixed(2)),
-      lifetimeWWC: Number((s.lifetimeWWC + finalWWC).toFixed(2)),
-      streak: s.lastWorkDay === getTodayKey() ? s.streak : s.streak + 1,
-      lastWorkDay: getTodayKey(),
-    }));
+      if (diffDays === 1) nextStreak = streakDays + 1;
+      else if (diffDays > 1) nextStreak = 1;
+    } else {
+      nextStreak = 1;
+    }
+
+    const bonusMultiplier = 1 + Math.min(nextStreak - 1, 14) * 0.02;
+    const earned = totalWWCThisShift * bonusMultiplier;
+
+    setBankedWWC((v) => v + earned);
+    setLifetimeWWC((v) => v + earned);
+    setLifetimeGross((v) => v + gross);
+    setLifetimeNet((v) => v + net);
+    setStreakDays(nextStreak);
+    setLastBankDate(today);
+    setElapsedSeconds(0);
+    setIsWorking(false);
+    setPage("coins");
+  }
+
+  function resetShift() {
+    setIsWorking(false);
+    setElapsedSeconds(0);
   }
 
   function resetAll() {
-    setState((s) => ({
-      userName: s.userName || "",
-      rate: 22,
-      withholding: 18,
-      shiftGoalHours: 8,
-      weeklyGoalHours: 40,
-      weeklyHoursWorked: 0,
-      lifetimeEarned: 0,
-      lifetimeWWC: 0,
-      streak: 0,
-      isWorking: false,
-      shiftStartMs: null,
-      elapsedBeforeStart: 0,
-      coinRate: 10,
-      lastWorkDay: getTodayKey(),
-    }));
+    const ok = window.confirm("Reset all WorkWorth data?");
+    if (!ok) return;
+    localStorage.removeItem(LS_KEY);
+    window.location.reload();
   }
 
-  const shared = {
-    state,
-    setState,
-    elapsedSeconds,
-    gross,
-    taxes,
-    net,
-    totalWWCThisShift,
-    shiftProgress,
-    weeklyProjectedGross,
-    weeklyProjectedNet,
-    weeklyActualGross,
-    weeklyActualNet,
-    startWork,
-    pauseWork,
-    endShift,
-    resetAll,
-  };
-
-  return (
-    <div style={styles.app}>
-      <GlowBackground />
-      <div style={styles.shell}>
-        <Routes>
-          <Route path="/" element={<Dashboard {...shared} />} />
-          <Route path="/live" element={<LiveEarningsPage {...shared} />} />
-          <Route path="/coins" element={<CoinsPage {...shared} />} />
-          <Route path="/tax" element={<TaxPage {...shared} />} />
-          <Route path="/weekly" element={<WeeklyForecastPage {...shared} />} />
-          <Route path="/lifetime" element={<LifetimePage {...shared} />} />
-          <Route path="/streak" element={<StreakPage {...shared} />} />
-          <Route path="/profile" element={<ProfilePage {...shared} />} />
-          <Route path="/settings" element={<SettingsPage {...shared} />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        <BottomNav />
-      </div>
-    </div>
-  );
-}
-
-/* ---------------- dashboard ---------------- */
-
-function Dashboard(props) {
-  const {
-    elapsedSeconds,
-    net,
-    totalWWCThisShift,
-    taxes,
-    weeklyProjectedNet,
-    state,
-    startWork,
-    pauseWork,
-    endShift,
-    shiftProgress,
-  } = props;
-
-  const navigate = useNavigate();
-  const displayName = firstNameOnly(state.userName);
-
-  return (
-    <div style={styles.page}>
-      <Header
-        title={`WorkWorth${state.userName ? `, ${displayName}` : ""}`}
-        subtitle={
-          state.isWorking
-            ? "Shift running live"
-            : state.userName
-            ? `Ready to earn, ${displayName}`
-            : "Add your name in Profile"
-        }
-      />
-
-      <div style={styles.hero}>
-        <div style={styles.heroTopRow}>
-          <div>
-            <div style={styles.label}>LIVE NET EARNINGS</div>
-            <div style={styles.moneyHero}>{money(net)}</div>
-            <div style={styles.heroName}>
-              {state.userName
-                ? `${displayName}'s dashboard`
-                : "Your dashboard"}
-            </div>
-          </div>
-          <div style={styles.liveBadge}>{state.isWorking ? "LIVE" : "PAUSED"}</div>
-        </div>
-
-        <div style={styles.heroMiniRow}>
-          <StatPill label="Time" value={formatClock(elapsedSeconds)} />
-          <StatPill label="Coins" value={`${Math.floor(totalWWCThisShift)} WWC`} green />
-        </div>
-
-        <div style={styles.progressWrap}>
-          <div style={styles.progressHeader}>
-            <span style={styles.label}>SHIFT PROGRESS</span>
-            <span style={styles.progressPct}>{Math.round(shiftProgress * 100)}%</span>
-          </div>
-          <div style={styles.progressBar}>
-            <div
-              style={{
-                ...styles.progressFill,
-                width: `${Math.max(6, shiftProgress * 100)}%`,
-              }}
-            />
-          </div>
-        </div>
-
-        <div style={styles.actionRow}>
-          {!state.isWorking ? (
-            <button style={styles.primaryBtn} onClick={startWork}>
-              Start Work
-            </button>
-          ) : (
-            <button style={styles.primaryBtn} onClick={pauseWork}>
-              Pause
-            </button>
-          )}
-          <button style={styles.secondaryBtn} onClick={endShift}>
-            End Shift
-          </button>
-        </div>
-      </div>
-
-      <div style={styles.widgetGrid}>
-        <WidgetCard
-          title="Profile"
-          value={state.userName ? state.userName : "Add your name"}
-          hint="Tap to open"
-          onClick={() => navigate("/profile")}
-          active={!state.userName}
-        />
-        <WidgetCard
-          title="Live Earnings"
-          value={money(net)}
-          hint="Tap to open"
-          onClick={() => navigate("/live")}
-        />
-        <WidgetCard
-          title="Coins"
-          value={`${Math.floor(totalWWCThisShift)} WWC`}
-          hint="Tap to open"
-          green
-          onClick={() => navigate("/coins")}
-        />
-        <WidgetCard
-          title="Tax Estimator"
-          value={money(taxes)}
-          hint="Tap to open"
-          onClick={() => navigate("/tax")}
-        />
-        <WidgetCard
-          title="Weekly Forecast"
-          value={money(weeklyProjectedNet)}
-          hint="Tap to open"
-          onClick={() => navigate("/weekly")}
-        />
-        <WidgetCard
-          title="Lifetime Earnings"
-          value={money(state.lifetimeEarned)}
-          hint="Tap to open"
-          onClick={() => navigate("/lifetime")}
-        />
-        <WidgetCard
-          title="Work Streak"
-          value={`${state.streak} days`}
-          hint="Tap to open"
-          onClick={() => navigate("/streak")}
-        />
-      </div>
-    </div>
-  );
-}
-
-/* ---------------- pages ---------------- */
-
-function LiveEarningsPage({
-  elapsedSeconds,
-  gross,
-  taxes,
-  net,
-  shiftProgress,
-  state,
-  startWork,
-  pauseWork,
-  endShift,
-}) {
-  const displayName = firstNameOnly(state.userName);
-
-  return (
-    <PageFrame
-      title="Live Earnings"
-      subtitle={state.userName ? `${displayName}'s live shift value` : "Real-time shift value"}
-    >
-      <BigPanel>
-        <div style={styles.label}>NET PAY RIGHT NOW</div>
-        <div style={styles.bigGreen}>{money(net)}</div>
-        <div style={styles.progressWrap}>
-          <div style={styles.progressHeader}>
-            <span style={styles.softText}>Shift progress</span>
-            <span style={styles.greenText}>{Math.round(shiftProgress * 100)}%</span>
-          </div>
-          <div style={styles.progressBar}>
-            <div
-              style={{
-                ...styles.progressFill,
-                width: `${Math.max(6, shiftProgress * 100)}%`,
-              }}
-            />
-          </div>
-        </div>
-      </BigPanel>
-
-      <InfoRow label="Time Worked" value={formatClock(elapsedSeconds)} />
-      <InfoRow label="Gross Earnings" value={money(gross)} />
-      <InfoRow label="Estimated Taxes" value={money(taxes)} />
-      <InfoRow label="Take-Home So Far" value={money(net)} green />
-
-      <div style={styles.actionRow}>
-        {!state.isWorking ? (
-          <button style={styles.primaryBtn} onClick={startWork}>
-            Start
-          </button>
-        ) : (
-          <button style={styles.primaryBtn} onClick={pauseWork}>
-            Pause
-          </button>
-        )}
-        <button style={styles.secondaryBtn} onClick={endShift}>
-          End Shift
-        </button>
-      </div>
-    </PageFrame>
-  );
-}
-
-function CoinsPage({ totalWWCThisShift, state }) {
-  const level = Math.floor(state.lifetimeWWC / 1000) + 1;
-  const nextLevelAt = level * 1000;
-  const progressToNext = clamp((state.lifetimeWWC % 1000) / 1000, 0, 1);
-
-  return (
-    <PageFrame title="Coins" subtitle="WorkWorth coin progress">
-      <BigPanel>
-        <div style={styles.label}>SHIFT COINS</div>
-        <div style={styles.bigGreen}>{Math.floor(totalWWCThisShift)} WWC</div>
-        <div style={styles.softText}>Lifetime: {Math.floor(state.lifetimeWWC)} WWC</div>
-      </BigPanel>
-
-      <InfoRow label="Current Level" value={`Lv. ${level}`} green />
-      <InfoRow label="Next Level At" value={`${nextLevelAt} WWC`} />
-      <InfoRow label="Coin Rate" value={`${state.coinRate} WWC per $1 net`} />
-
-      <div style={styles.card}>
-        <div style={styles.progressHeader}>
-          <span style={styles.softText}>Level progress</span>
-          <span style={styles.greenText}>{Math.round(progressToNext * 100)}%</span>
-        </div>
-        <div style={styles.progressBar}>
-          <div
-            style={{
-              ...styles.progressFill,
-              width: `${Math.max(6, progressToNext * 100)}%`,
-            }}
-          />
-        </div>
-      </div>
-    </PageFrame>
-  );
-}
-
-function TaxPage({ gross, taxes, net, state }) {
-  return (
-    <PageFrame title="Tax Estimator" subtitle="Simple estimated withholding">
-      <BigPanel>
-        <div style={styles.label}>ESTIMATED TAXES</div>
-        <div style={styles.bigGreen}>{money(taxes)}</div>
-        <div style={styles.softText}>{state.withholding}% withholding rate</div>
-      </BigPanel>
-
-      <InfoRow label="Gross" value={money(gross)} />
-      <InfoRow label="Tax Estimate" value={money(taxes)} />
-      <InfoRow label="Net After Taxes" value={money(net)} green />
-
-      <div style={styles.card}>
-        <div style={styles.softText}>
-          This is a quick estimate. Users can change the withholding percentage in
-          Settings.
-        </div>
-      </div>
-    </PageFrame>
-  );
-}
-
-function WeeklyForecastPage({
-  state,
-  weeklyProjectedGross,
-  weeklyProjectedNet,
-  weeklyActualGross,
-  weeklyActualNet,
-}) {
-  const weeklyProgress = clamp(
-    state.weeklyGoalHours ? state.weeklyHoursWorked / state.weeklyGoalHours : 0,
-    0,
-    1
-  );
-
-  return (
-    <PageFrame title="Weekly Forecast" subtitle="Where the week is headed">
-      <BigPanel>
-        <div style={styles.label}>PROJECTED TAKE-HOME</div>
-        <div style={styles.bigGreen}>{money(weeklyProjectedNet)}</div>
-        <div style={styles.softText}>Based on {state.weeklyGoalHours} hrs goal</div>
-      </BigPanel>
-
-      <InfoRow label="Weekly Goal Hours" value={`${state.weeklyGoalHours} hrs`} />
-      <InfoRow label="Hours Logged" value={`${state.weeklyHoursWorked.toFixed(2)} hrs`} />
-      <InfoRow label="Actual Net So Far" value={money(weeklyActualNet)} green />
-      <InfoRow label="Projected Gross" value={money(weeklyProjectedGross)} />
-      <InfoRow label="Actual Gross So Far" value={money(weeklyActualGross)} />
-
-      <div style={styles.card}>
-        <div style={styles.progressHeader}>
-          <span style={styles.softText}>Weekly hours progress</span>
-          <span style={styles.greenText}>{Math.round(weeklyProgress * 100)}%</span>
-        </div>
-        <div style={styles.progressBar}>
-          <div
-            style={{
-              ...styles.progressFill,
-              width: `${Math.max(6, weeklyProgress * 100)}%`,
-            }}
-          />
-        </div>
-      </div>
-    </PageFrame>
-  );
-}
-
-function LifetimePage({ state }) {
-  const avgShiftValue =
-    state.streak > 0 ? state.lifetimeEarned / state.streak : state.lifetimeEarned;
-
-  return (
-    <PageFrame title="Lifetime Earnings" subtitle="All-time work value">
-      <BigPanel>
-        <div style={styles.label}>LIFETIME TAKE-HOME</div>
-        <div style={styles.bigGreen}>{money(state.lifetimeEarned)}</div>
-        <div style={styles.softText}>
-          {Math.floor(state.lifetimeWWC)} lifetime WWC earned
-        </div>
-      </BigPanel>
-
-      <InfoRow label="Total Net Earned" value={money(state.lifetimeEarned)} green />
-      <InfoRow label="Lifetime WWC" value={`${Math.floor(state.lifetimeWWC)} WWC`} />
-      <InfoRow label="Average Value Snapshot" value={money(avgShiftValue)} />
-    </PageFrame>
-  );
-}
-
-function StreakPage({ state }) {
-  const multiplier = 1 + state.streak * 0.02;
-
-  return (
-    <PageFrame title="Work Streak" subtitle="Consistency tracker">
-      <BigPanel>
-        <div style={styles.label}>CURRENT STREAK</div>
-        <div style={styles.bigGreen}>{state.streak} days</div>
-        <div style={styles.softText}>Keep stacking days and building momentum</div>
-      </BigPanel>
-
-      <InfoRow label="Current Streak" value={`${state.streak} days`} green />
-      <InfoRow label="Motivation Multiplier" value={`${multiplier.toFixed(2)}x`} />
-      <InfoRow label="Last Worked Day" value={state.lastWorkDay} />
-    </PageFrame>
-  );
-}
-
-function ProfilePage({ state, setState }) {
-  const displayName = firstNameOnly(state.userName);
-
-  return (
-    <PageFrame title="Profile" subtitle="Let users add their name">
-      <BigPanel>
-        <div style={styles.label}>DISPLAY NAME</div>
-        <div style={styles.bigGreen}>
-          {state.userName ? displayName : "Add yours"}
-        </div>
-        <div style={styles.softText}>
-          This name shows on the dashboard and profile.
-        </div>
-      </BigPanel>
-
-      <Field
-        label="Your Name"
-        value={state.userName}
-        onChange={(v) =>
-          setState((s) => ({
-            ...s,
-            userName: v.slice(0, 30),
-          }))
-        }
-        placeholder="Enter your name"
-      />
-
-      <div style={styles.card}>
-        <div style={styles.infoRowLite}>
-          <div style={styles.infoLabel}>Preview</div>
-          <div style={styles.infoValueGreen}>
-            {state.userName ? `${displayName}'s WorkWorth` : "Your WorkWorth"}
-          </div>
-        </div>
-      </div>
-
-      <button
-        style={{ ...styles.secondaryBtn, width: "100%", marginTop: 12 }}
-        onClick={() =>
-          setState((s) => ({
-            ...s,
-            userName: "",
-          }))
-        }
-      >
-        Clear Name
-      </button>
-    </PageFrame>
-  );
-}
-
-function SettingsPage({ state, setState, resetAll }) {
-  return (
-    <PageFrame title="Settings" subtitle="Customize WorkWorth stats">
-      <Field
-        label="Hourly Rate"
-        value={state.rate}
-        onChange={(v) => setState((s) => ({ ...s, rate: Number(v) || 0 }))}
-        placeholder="22"
-      />
-      <Field
-        label="Tax Withholding %"
-        value={state.withholding}
-        onChange={(v) =>
-          setState((s) => ({
-            ...s,
-            withholding: clamp(Number(v) || 0, 0, 60),
-          }))
-        }
-        placeholder="18"
-      />
-      <Field
-        label="Shift Goal Hours"
-        value={state.shiftGoalHours}
-        onChange={(v) =>
-          setState((s) => ({ ...s, shiftGoalHours: Number(v) || 0 }))
-        }
-        placeholder="8"
-      />
-      <Field
-        label="Weekly Goal Hours"
-        value={state.weeklyGoalHours}
-        onChange={(v) =>
-          setState((s) => ({ ...s, weeklyGoalHours: Number(v) || 0 }))
-        }
-        placeholder="40"
-      />
-      <Field
-        label="Weekly Hours Worked"
-        value={state.weeklyHoursWorked}
-        onChange={(v) =>
-          setState((s) => ({ ...s, weeklyHoursWorked: Number(v) || 0 }))
-        }
-        placeholder="0"
-      />
-      <Field
-        label="Coin Rate (WWC per $1)"
-        value={state.coinRate}
-        onChange={(v) =>
-          setState((s) => ({ ...s, coinRate: Number(v) || 0 }))
-        }
-        placeholder="10"
-      />
-
-      <button
-        style={{ ...styles.secondaryBtn, width: "100%", marginTop: 16 }}
-        onClick={resetAll}
-      >
-        Reset Everything
-      </button>
-    </PageFrame>
-  );
-}
-
-/* ---------------- reusable ui ---------------- */
-
-function Header({ title, subtitle }) {
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={styles.pageTitle}>{title}</div>
-      <div style={styles.pageSubtitle}>{subtitle}</div>
-    </div>
-  );
-}
-
-function PageFrame({ title, subtitle, children }) {
-  return (
-    <div style={styles.page}>
-      <Header title={title} subtitle={subtitle} />
-      {children}
-    </div>
-  );
-}
-
-function BigPanel({ children }) {
-  return <div style={styles.bigPanel}>{children}</div>;
-}
-
-function WidgetCard({ title, value, hint, onClick, active, green }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        ...styles.widget,
-        border: active
-          ? "1px solid rgba(0, 212, 255, 0.85)"
-          : "1px solid rgba(0, 180, 255, 0.14)",
-        boxShadow: active
-          ? "0 0 24px rgba(0, 212, 255, 0.35)"
-          : "0 10px 28px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.02)",
-      }}
-    >
-      <div style={styles.widgetTitle}>{title}</div>
-      <div
-        style={{
-          ...styles.widgetValue,
-          color: green ? "#5CFF95" : "#E8F3FF",
-        }}
-      >
-        {value}
-      </div>
-      <div style={styles.widgetHint}>{hint}</div>
-    </button>
-  );
-}
-
-function InfoRow({ label, value, green }) {
-  return (
-    <div style={styles.infoRow}>
-      <div style={styles.infoLabel}>{label}</div>
-      <div style={{ ...styles.infoValue, color: green ? "#5CFF95" : "#E8F3FF" }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function StatPill({ label, value, green }) {
-  return (
-    <div style={styles.statPill}>
-      <div style={styles.statPillLabel}>{label}</div>
-      <div
-        style={{
-          ...styles.statPillValue,
-          color: green ? "#5CFF95" : "#DDEAFF",
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, value, onChange, placeholder }) {
-  return (
-    <div style={styles.fieldWrap}>
-      <div style={styles.fieldLabel}>{label}</div>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        style={styles.input}
-        inputMode="text"
-      />
-    </div>
-  );
-}
-
-function BottomNav() {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const items = [
-    { label: "Home", path: "/" },
-    { label: "Live", path: "/live" },
-    { label: "Profile", path: "/profile" },
-    { label: "Settings", path: "/settings" },
+  const widgets = [
+    {
+      key: "live",
+      title: "Live Earnings",
+      value: money(gross),
+      sub: `${money(perSecondGross)}/sec`,
+      icon: <DollarSign size={18} />,
+    },
+    {
+      key: "goal",
+      title: "Weekly Goal",
+      value: `${money(gross)} / ${money(weeklyGoal)}`,
+      sub: `${num(progressToGoal, 0)}% complete`,
+      icon: <Target size={18} />,
+    },
+    {
+      key: "schedule",
+      title: "Work Schedule",
+      value: `${schedule[getTodayIndex()].day}: ${scheduleLine(
+        schedule[getTodayIndex()]
+      )}`,
+      sub: "Tap to edit schedule",
+      icon: <CalendarDays size={18} />,
+    },
+    {
+      key: "forecast",
+      title: "Weekly Forecast",
+      value: money(weeklyNet),
+      sub: `Gross ${money(weeklyGross)}`,
+      icon: <TrendingUp size={18} />,
+    },
+    {
+      key: "value",
+      title: "Your Time Value",
+      value: `${money(perSecondGross)}/sec`,
+      sub: `${money(perMinuteGross)}/min • ${money(hourlyRate)}/hr`,
+      icon: <Sparkles size={18} />,
+    },
+    {
+      key: "coins",
+      title: "WWC Coins",
+      value: num(totalWWCThisShift, 1),
+      sub: `Banked: ${num(bankedWWC, 1)}`,
+      icon: <Coins size={18} />,
+    },
+    {
+      key: "tax",
+      title: "Tax Predictor",
+      value: money(net),
+      sub: `Taxes: ${money(taxes)}`,
+      icon: <Wallet size={18} />,
+    },
+    {
+      key: "lifetime",
+      title: "Lifetime Earnings",
+      value: money(lifetimeGross + gross),
+      sub: `Level ${level}`,
+      icon: <Trophy size={18} />,
+    },
   ];
 
-  return (
-    <div style={styles.bottomNav}>
-      {items.map((item) => {
-        const active = location.pathname === item.path;
-        return (
-          <button
-            key={item.path}
-            onClick={() => navigate(item.path)}
-            style={{
-              ...styles.navBtn,
-              color: active ? "#5CFF95" : "#7FA7C9",
-              textShadow: active ? "0 0 10px rgba(92,255,149,0.65)" : "none",
-            }}
-          >
-            {item.label}
+  function card(title, value, sub, icon, onClick, glow = false) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        style={{
+          ...styles.card,
+          ...(glow ? styles.glowCard : {}),
+          cursor: onClick ? "pointer" : "default",
+        }}
+      >
+        <div style={styles.cardHeader}>
+          <div style={styles.cardTitleWrap}>
+            <span style={styles.iconBadge}>{icon}</span>
+            <span style={styles.cardTitle}>{title}</span>
+          </div>
+        </div>
+        <div style={glow ? styles.glowValue : styles.cardValue}>{value}</div>
+        <div style={styles.cardSub}>{sub}</div>
+      </button>
+    );
+  }
+
+  function HomePage() {
+    return (
+      <div style={styles.pageWrap}>
+        <div style={styles.hero}>
+          <div>
+            <div style={styles.brand}>WorkWorth</div>
+            <div style={styles.heroTag}>Focus Mode</div>
+            <div style={styles.heroName}>Welcome, {profileName}</div>
+          </div>
+
+          <div style={styles.progressWrap}>
+            <div style={{ width: 120, height: 120 }}>
+              <CircularProgressbar
+                value={progressToGoal}
+                text={`${num(progressToGoal, 0)}%`}
+                styles={buildStyles({
+                  pathColor: "#39ff88",
+                  trailColor: "rgba(255,255,255,0.08)",
+                  textColor: "#dfffea",
+                  textSize: "16px",
+                })}
+              />
+            </div>
+            <div style={styles.progressText}>
+              <div style={styles.progressLabel}>Weekly Goal</div>
+              <div style={styles.progressMoney}>{money(weeklyGoal)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={styles.liveStrip}>
+          <div style={styles.liveLeft}>
+            <div style={styles.liveLabel}>Live Earnings</div>
+            <div style={styles.liveMoney}>{money(gross)}</div>
+            <div style={styles.liveSub}>
+              {money(perSecondGross)} / sec • {money(hourlyRate)} / hr
+            </div>
+          </div>
+
+          <div style={styles.liveButtons}>
+            {!isWorking ? (
+              <button style={styles.neonBtn} onClick={() => setIsWorking(true)}>
+                <Play size={18} />
+                Start
+              </button>
+            ) : (
+              <button
+                style={styles.neonBtnAlt}
+                onClick={() => setIsWorking(false)}
+              >
+                <Pause size={18} />
+                Pause
+              </button>
+            )}
+
+            <button style={styles.darkBtn} onClick={resetShift}>
+              <RotateCcw size={18} />
+              Reset
+            </button>
+
+            <button style={styles.bankBtn} onClick={bankCoins}>
+              <Coins size={18} />
+              Bank
+            </button>
+          </div>
+        </div>
+
+        <div style={styles.grid}>
+          {card(
+            "Live Earnings",
+            money(gross),
+            `${money(perSecondGross)}/sec`,
+            <DollarSign size={18} />,
+            () => setPage("live"),
+            true
+          )}
+          {card(
+            "Weekly Goal",
+            `${money(gross)} / ${money(weeklyGoal)}`,
+            `${num(progressToGoal, 0)}% complete`,
+            <Target size={18} />,
+            () => setPage("weekly")
+          )}
+          {card(
+            "Work Schedule",
+            `${schedule[getTodayIndex()].day}: ${scheduleLine(
+              schedule[getTodayIndex()]
+            )}`,
+            "Tap to edit your hours",
+            <CalendarDays size={18} />,
+            () => setPage("schedule")
+          )}
+          {card(
+            "Weekly Forecast",
+            money(weeklyNet),
+            `Gross ${money(weeklyGross)}`,
+            <TrendingUp size={18} />,
+            () => setPage("weekly")
+          )}
+          {card(
+            "Your Time Value",
+            `${money(perSecondGross)}/sec`,
+            `${money(perMinuteGross)}/min • ${money(hourlyRate)}/hr`,
+            <Sparkles size={18} />,
+            () => setPage("live")
+          )}
+          {card(
+            "WWC Coins",
+            num(totalWWCThisShift, 1),
+            `Banked: ${num(bankedWWC, 1)}`,
+            <Coins size={18} />,
+            () => setPage("coins")
+          )}
+          {card(
+            "Paycheck Predictor",
+            money(net),
+            `Taxes ${money(taxes)}`,
+            <Wallet size={18} />,
+            () => setPage("tax")
+          )}
+          {card(
+            "Lifetime Earnings",
+            money(lifetimeGross + gross),
+            `Level ${level}`,
+            <Trophy size={18} />,
+            () => setPage("lifetime")
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function LivePage() {
+    return (
+      <PageShell
+        title="Live Earnings"
+        subtitle="Track your shift in real time."
+        icon={<DollarSign size={18} />}
+      >
+        <BigStat label="Current Gross" value={money(gross)} glow />
+        <TwoCol
+          left={{
+            label: "Current Taxes",
+            value: money(taxes),
+          }}
+          right={{
+            label: "Current Net",
+            value: money(net),
+          }}
+        />
+        <TwoCol
+          left={{
+            label: "Per Second",
+            value: `${money(perSecondGross)}`,
+          }}
+          right={{
+            label: "Per Minute",
+            value: `${money(perMinuteGross)}`,
+          }}
+        />
+        <div style={styles.actionRow}>
+          {!isWorking ? (
+            <button style={styles.neonBtn} onClick={() => setIsWorking(true)}>
+              <Play size={18} />
+              Start Shift
+            </button>
+          ) : (
+            <button
+              style={styles.neonBtnAlt}
+              onClick={() => setIsWorking(false)}
+            >
+              <Pause size={18} />
+              Pause Shift
+            </button>
+          )}
+          <button style={styles.darkBtn} onClick={resetShift}>
+            <RotateCcw size={18} />
+            Reset Shift
           </button>
-        );
-      })}
-    </div>
-  );
-}
+        </div>
+      </PageShell>
+    );
+  }
 
-function GlowBackground() {
-  return (
-    <>
-      <div style={styles.glowA} />
-      <div style={styles.glowB} />
-      <div style={styles.glowC} />
-    </>
-  );
-}
+  function CoinsPage() {
+    return (
+      <PageShell
+        title="WWC Coins"
+        subtitle="Turn your work into momentum."
+        icon={<Coins size={18} />}
+      >
+        <BigStat
+          label="Shift WWC"
+          value={num(totalWWCThisShift, 1)}
+          suffix=" WWC"
+          glow
+        />
+        <TwoCol
+          left={{ label: "Banked WWC", value: `${num(bankedWWC, 1)} WWC` }}
+          right={{ label: "Lifetime WWC", value: `${num(lifetimeWWC, 1)} WWC` }}
+        />
+        <TwoCol
+          left={{ label: "Streak", value: `${streakDays} day(s)` }}
+          right={{ label: "Level", value: `${level}` }}
+        />
+        <button style={styles.bankBtnWide} onClick={bankCoins}>
+          <Coins size={18} />
+          Bank This Shift
+        </button>
+      </PageShell>
+    );
+  }
 
-/* ---------------- styles ---------------- */
+  function TaxPage() {
+    return (
+      <PageShell
+        title="Tax Predictor"
+        subtitle="See gross, taxes, and take-home."
+        icon={<Wallet size={18} />}
+      >
+        <BigStat label="Take Home" value={money(net)} glow />
+        <TwoCol
+          left={{ label: "Gross", value: money(gross) }}
+          right={{ label: "Taxes", value: money(taxes) }}
+        />
+        <div style={styles.sectionBox}>
+          <div style={styles.inputLabel}>Tax Withholding %</div>
+          <input
+            style={styles.input}
+            type="number"
+            min="0"
+            max="60"
+            step="0.5"
+            value={taxRate}
+            onChange={(e) => setTaxRate(Number(e.target.value) || 0)}
+          />
+        </div>
+      </PageShell>
+    );
+  }
 
-const styles = {
-  app: {
-    minHeight: "100vh",
-    background:
-      "radial-gradient(circle at top, #071A45 0%, #04112B 35%, #020918 70%, #01040D 100%)",
-    color: "#E8F3FF",
-    fontFamily:
-      'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    position: "relative",
-    overflow: "hidden",
-  },
+  function WeeklyPage() {
+    return (
+      <PageShell
+        title="Weekly Forecast"
+        subtitle="Projected earnings from your schedule."
+        icon={<TrendingUp size={18} />}
+      >
+        <BigStat label="Projected Weekly Net" value={money(weeklyNet)} glow />
+        <TwoCol
+          left={{ label: "Weekly Gross", value: money(weeklyGross) }}
+          right={{ label: "Weekly Taxes", value: money(weeklyTaxes) }}
+        />
+        <div style={styles.sectionBox}>
+          <div style={styles.inputLabel}>Weekly Goal ($)</div>
+          <input
+            style={styles.input}
+            type="number"
+            min="0"
+            step="10"
+            value={weeklyGoal}
+            onChange={(e) => setWeeklyGoal(Number(e.target.value) || 0)}
+          />
+        </div>
+      </PageShell>
+    );
+  }
 
-  shell: {
-    maxWidth: 460,
-    margin: "0 auto",
-    minHeight: "100vh",
-    position: "relative",
-    zIndex: 2,
-    paddingBottom: 92,
-  },
+  function LifetimePage() {
+    return (
+      <PageShell
+        title="Lifetime Earnings"
+        subtitle="Your long-game numbers."
+        icon={<Trophy size={18} />}
+      >
+        <BigStat label="Lifetime Gross" value={money(lifetimeGross + gross)} glow />
+        <TwoCol
+          left={{ label: "Lifetime Net", value: money(lifetimeNet + net) }}
+          right={{ label: "Yearly Projection", value: money(annualGross) }}
+        />
+        <TwoCol
+          left={{
+            label: "40-Year Projection",
+            value: money(projectedCareerGross),
+          }}
+          right={{ label: "Current Level", value: `${level}` }}
+        />
+      </PageShell>
+    );
+  }
 
-  page: {
-    padding: 18,
-  },
+  function ProfilePage() {
+    return (
+      <PageShell
+        title="Profile"
+        subtitle="Set your name and pay."
+        icon={<User size={18} />}
+      >
+        <div style={styles.sectionBox}>
+          <div style={styles.inputLabel}>Your Name</div>
+          <input
+            style={styles.input}
+            value={profileName}
+            onChange={(e) => setProfileName(e.target.value)}
+            placeholder="Enter your name"
+          />
+        </div>
 
-  pageTitle: {
-    fontSize: 30,
-    fontWeight: 800,
-    letterSpacing: 0.4,
-    color: "#E8F3FF",
-  },
+        <div style={styles.sectionBox}>
+          <div style={styles.inputLabel}>Hourly Pay</div>
+          <input
+            style={styles.input}
+            type="number"
+            min="0"
+            step="0.25"
+            value={hourlyRate}
+            onChange={(e) => setHourlyRate(Number(e.target.value) || 0)}
+          />
+        </div>
 
-  pageSubtitle: {
-    marginTop: 4,
-    color: "#7FA7C9",
-    fontSize: 14,
-  },
+        <div style={styles.sectionBox}>
+          <div style={styles.inputLabel}>WWC Per Dollar</div>
+          <input
+            style={styles.input}
+            type="number"
+            min="1"
+            step="1"
+            value={wwcPerDollar}
+            onChange={(e) => setWwcPerDollar(Number(e.target.value) || 1)}
+          />
+        </div>
+      </PageShell>
+    );
+  }
 
-  hero: {
-    background:
-      "linear-gradient(180deg, rgba(8,22,57,0.96) 0%, rgba(4,15,38,0.98) 100%)",
-    borderRadius: 26,
-    padding: 18,
-    marginBottom: 18,
-    border: "1px solid rgba(0, 200, 255, 0.18)",
-    boxShadow:
-      "0 18px 38px rgba(0,0,0,0.45), 0 0 30px rgba(0,170,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.02)",
-  },
+  function SchedulePage() {
+    return (
+      <PageShell
+        title="Work Schedule"
+        subtitle="Edit your weekly hours."
+        icon={<CalendarDays size={18} />}
+      >
+        <div style={{ display: "grid", gap: 12 }}>
+          {schedule.map((row, i) => (
+            <div key={row.day} style={styles.scheduleRow}>
+              <div style={styles.scheduleDay}>{row.day}</div>
 
-  heroTopRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
-  },
+              <input
+                style={styles.scheduleInput}
+                type="number"
+                step="0.5"
+                min="0"
+                max="23.5"
+                value={row.start}
+                onChange={(e) => {
+                  const next = [...schedule];
+                  next[i] = {
+                    ...next[i],
+                    start: Number(e.target.value) || 0,
+                  };
+                  setSchedule(next);
+                }}
+              />
 
-  label: {
-    color: "#65C7FF",
-    fontSize: 12,
-    fontWeight: 700,
-    letterSpacing: 1.2,
-  },
+              <span style={styles.toText}>to</span>
 
-  moneyHero: {
-    fontSize: 40,
-    fontWeight: 900,
-    color: "#5CFF95",
-    lineHeight: 1.05,
-    marginTop: 8,
-    textShadow: "0 0 18px rgba(92,255,149,0.45)",
-  },
+              <input
+                style={styles.scheduleInput}
+                type="number"
+                step="0.5"
+                min="0"
+                max="23.5"
+                value={row.end}
+                onChange={(e) => {
+                  const next = [...schedule];
+                  next[i] = {
+                    ...next[i],
+                    end: Number(e.target.value) || 0,
+                  };
+                  setSchedule(next);
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      </PageShell>
+    );
+  }
 
-  heroName: {
-    marginTop: 8,
-    color: "#8BC4FF",
-    fontSize: 14,
-    fontWeight: 600,
-  },
-
-  liveBadge: {
-    padding: "8px 12px",
-    borderRadius: 999,
-    background: "rgba(92,255,149,0.10)",
-    color: "#5CFF95",
-    border: "1px solid rgba(92,255,149,0.35)",
-    fontWeight: 800,
-    fontSize: 12,
-    letterSpacing: 1,
-  },
-
-  heroMiniRow: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 12,
-    marginTop: 16,
-  },
-
-  statPill: {
-    background: "rgba(4, 16, 42, 0.88)",
-    borderRadius: 18,
-    padding: 14,
-    border: "1px solid rgba(0, 180, 255, 0.12)",
-  },
-
-  statPillLabel: {
-    color: "#7FA7C9",
-    fontSize: 12,
-    marginBottom: 6,
-  },
-
-  statPillValue: {
-    fontWeight: 800,
-    fontSize: 18,
-  },
-
-  progressWrap: {
-    marginTop: 18,
-  },
-
-  progressHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-
-  progressPct: {
-    color: "#5CFF95",
-    fontWeight: 800,
-    textShadow: "0 0 12px rgba(92,255,149,0.45)",
-  },
-
-  progressBar: {
-    width: "100%",
-    height: 13,
-    borderRadius: 999,
-    background: "rgba(255,255,255,0.06)",
-    overflow: "hidden",
-    boxShadow: "inset 0 0 10px rgba(0,0,0,0.45)",
-  },
-
-  progressFill: {
-    height: "100%",
-    borderRadius: 999,
-    background:
-      "linear-gradient(90deg, rgba(0,255,163,0.95) 0%, rgba(92,255,149,1) 40%, rgba(142,255,196,0.95) 100%)",
-    boxShadow: "0 0 18px rgba(92,255,149,0.55)",
-    transition: "width 0.35s ease",
-  },
-
-  actionRow: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 12,
-    marginTop: 18,
-  },
-
-  primaryBtn: {
-    background:
-      "linear-gradient(180deg, rgba(0,255,163,0.22) 0%, rgba(0,180,100,0.15) 100%)",
-    color: "#5CFF95",
-    border: "1px solid rgba(92,255,149,0.4)",
-    padding: "14px 16px",
-    borderRadius: 18,
-    fontWeight: 800,
-    fontSize: 16,
-    boxShadow: "0 0 20px rgba(92,255,149,0.18)",
-  },
-
-  secondaryBtn: {
-    background: "rgba(7, 24, 58, 0.92)",
-    color: "#9ED8FF",
-    border: "1px solid rgba(0, 200, 255, 0.22)",
-    padding: "14px 16px",
-    borderRadius: 18,
-    fontWeight: 800,
-    fontSize: 16,
-    boxShadow: "0 0 16px rgba(0,120,255,0.08)",
-  },
-
-  widgetGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr",
-    gap: 16,
-  },
-
-  widget: {
-    width: "100%",
-    textAlign: "left",
-    background:
-      "linear-gradient(180deg, rgba(6,21,52,0.96) 0%, rgba(3,12,32,0.98) 100%)",
-    borderRadius: 24,
-    padding: 18,
-  },
-
-  widgetTitle: {
-    fontWeight: 800,
-    fontSize: 18,
-    marginBottom: 10,
-    color: "#E8F3FF",
-  },
-
-  widgetValue: {
-    fontWeight: 900,
-    fontSize: 28,
-    marginBottom: 8,
-  },
-
-  widgetHint: {
-    color: "#7896B6",
-    fontSize: 15,
-  },
-
-  bigPanel: {
-    background:
-      "linear-gradient(180deg, rgba(8,22,57,0.96) 0%, rgba(4,15,38,0.98) 100%)",
-    borderRadius: 26,
-    padding: 22,
-    marginBottom: 16,
-    border: "1px solid rgba(0, 180, 255, 0.16)",
-    boxShadow:
-      "0 18px 38px rgba(0,0,0,0.45), 0 0 30px rgba(0,170,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.02)",
-  },
-
-  bigGreen: {
-    fontSize: 42,
-    fontWeight: 900,
-    color: "#5CFF95",
-    marginTop: 8,
-    textShadow: "0 0 18px rgba(92,255,149,0.45)",
-    lineHeight: 1.08,
-  },
-
-  infoRow: {
-    background: "rgba(5, 16, 40, 0.90)",
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 12,
-    border: "1px solid rgba(0, 180, 255, 0.10)",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-  },
-
-  infoRowLite: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-  },
-
-  infoLabel: {
-    color: "#86A9C8",
-    fontSize: 14,
-  },
-
-  infoValue: {
-    fontWeight: 800,
-    fontSize: 16,
-    textAlign: "right",
-  },
-
-  infoValueGreen: {
-    fontWeight: 800,
-    fontSize: 16,
-    textAlign: "right",
-    color: "#5CFF95",
-    textShadow: "0 0 10px rgba(92,255,149,0.35)",
-  },
-
-  softText: {
-    color: "#7FA7C9",
-    fontSize: 14,
-    marginTop: 8,
-  },
-
-  greenText: {
-    color: "#5CFF95",
-    fontWeight: 800,
-    textShadow: "0 0 10px rgba(92,255,149,0.35)",
-  },
-
-  card: {
-    background: "rgba(5, 16, 40, 0.90)",
-    borderRadius: 18,
-    padding: 16,
-    border: "1px solid rgba(0, 180, 255, 0.10)",
-    marginBottom: 12,
-  },
-
-  fieldWrap: {
-    marginBottom: 14,
-  },
-
-  fieldLabel: {
-    color: "#86A9C8",
-    fontSize: 14,
-    marginBottom: 8,
-  },
-
-  input: {
-    width: "100%",
-    boxSizing: "border-box",
-    background: "rgba(3, 11, 29, 0.96)",
-    color: "#CFFFE0",
-    border: "1px solid rgba(92,255,149,0.22)",
-    borderRadius: 16,
-    padding: "14px 16px",
-    fontSize: 16,
-    outline: "none",
-    boxShadow: "0 0 14px rgba(92,255,149,0.06)",
-  },
-
-  bottomNav: {
-    position: "fixed",
-    left: "50%",
-    transform: "translateX(-50%)",
-    bottom: 12,
-    width: "min(430px, calc(100% - 24px))",
-    background: "rgba(2, 10, 28, 0.88)",
-    backdropFilter: "blur(12px)",
-    border: "1px solid rgba(0, 180, 255, 0.12)",
-    borderRadius: 24,
-    padding: 10,
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: 8,
-    boxShadow: "0 16px 36px rgba(0,0,0,0.45)",
-    zIndex: 10,
-  },
-
-  navBtn: {
-    background: "transparent",
-    border: "none",
-    padding: "12px 8px",
-    borderRadius: 16,
-    fontWeight: 800,
-    fontSize: 14,
-  },
-
-  glowA: {
-    position: "fixed",
-    width: 280,
-    height: 280,
-    borderRadius: "50%",
-    background: "rgba(0, 153, 255, 0.12)",
-    filter: "blur(40px)",
-    top: -70,
-    left: -60,
-    zIndex: 0,
-    pointerEvents: "none",
-  },
-
-  glowB: {
-    position: "fixed",
-    width: 260,
-    height: 260,
-    borderRadius: "50%",
-    background: "rgba(92,255,149,0.09)",
-    filter: "blur(46px)",
-    bottom: 80,
-    right: -70,
-    zIndex: 0,
-    pointerEvents: "none",
-  },
-
-  glowC: {
-    position: "fixed",
-    width: 180,
-    height: 180,
-    borderRadius: "50%",
-    background: "rgba(0, 212, 255, 0.10)",
-    filter: "blur(44px)",
-    top: "45%",
-    right: -50,
-    zIndex: 0,
-    pointerEvents: "none",
-  },
-};
+  function SettingsPage() {
+    return (
+      <PageShell
+        title="Settings"
+        subtitle="Control your app data."
+        icon={<Sett
