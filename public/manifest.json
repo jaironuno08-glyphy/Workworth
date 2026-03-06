@@ -1,0 +1,15 @@
+{
+  "name": "WorkWorth",
+  "short_name": "WorkWorth",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#071a2f",
+  "theme_color": "#22c55e",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

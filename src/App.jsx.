@@ -1,0 +1,202 @@
+import React, { useState, useEffect } from "react";
+
+const hourlyRate = 22;
+const taxRate = 0.2;
+const shiftLength = 8 * 60 * 60;
+
+function getNextPayday() {
+  const today = new Date();
+  const next = new Date();
+  next.setDate(today.getDate() + (5 - today.getDay() + 7) % 7);
+  const diff = next - today;
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+export default function App() {
+  const [working, setWorking] = useState(false);
+  const [secondsWorked, setSecondsWorked] = useState(0);
+  const [weeklyTotal, setWeeklyTotal] = useState(0);
+
+  const perSecond = hourlyRate / 3600;
+  const earnings = secondsWorked * perSecond;
+  const takeHome = earnings * (1 - taxRate);
+  const progress = (secondsWorked / shiftLength) * 100;
+  const estimatedPaycheck = hourlyRate * 8;
+  const daysToPayday = getNextPayday();
+
+  useEffect(() => {
+    let timer;
+    if (working) {
+      timer = setInterval(() => {
+        setSecondsWorked((s) => s + 1);
+        setWeeklyTotal((w) => w + perSecond);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [working]);
+
+  const toggleShift = () => {
+    if (working) {
+      setWorking(false);
+    } else {
+      setWorking(true);
+      setSecondsWorked(0);
+    }
+  };
+
+  return (
+    <div style={styles.app}>
+      <h1 style={styles.title}>WorkWorth</h1>
+
+      <div style={styles.money}>
+        ${earnings.toFixed(2)}
+      </div>
+
+      <div style={styles.sub}>earned this shift</div>
+
+      <div style={styles.rate}>
+        +${perSecond.toFixed(4)} per second
+      </div>
+
+      <div style={styles.takehome}>
+        Take-home: ${takeHome.toFixed(2)}
+      </div>
+
+      <div style={styles.payday}>
+        Payday in {daysToPayday} days
+      </div>
+
+      <div style={styles.progressLabel}>
+        Shift Progress ({progress.toFixed(1)}%)
+      </div>
+
+      <div style={styles.progressBar}>
+        <div
+          style={{
+            ...styles.progressFill,
+            width: `${progress}%`,
+          }}
+        />
+      </div>
+
+      <div style={styles.card}>
+        <div>Time Worked</div>
+        <div style={styles.cardValue}>
+          {(secondsWorked / 3600).toFixed(2)} hrs
+        </div>
+      </div>
+
+      <div style={styles.card}>
+        <div>Hourly Rate</div>
+        <div style={styles.cardValue}>
+          ${hourlyRate}/hr
+        </div>
+      </div>
+
+      <div style={styles.card}>
+        <div>Estimated Paycheck</div>
+        <div style={styles.cardValue}>
+          ${estimatedPaycheck.toFixed(2)}
+        </div>
+      </div>
+
+      <div style={styles.card}>
+        <div>Weekly Total</div>
+        <div style={styles.cardValue}>
+          ${weeklyTotal.toFixed(2)}
+        </div>
+      </div>
+
+      <button
+        onClick={toggleShift}
+        style={{
+          ...styles.button,
+          background: working ? "#ef4444" : "#22c55e",
+        }}
+      >
+        {working ? "End Shift" : "Start Shift"}
+      </button>
+    </div>
+  );
+}
+
+const styles = {
+  app: {
+    background: "#07152a",
+    minHeight: "100vh",
+    color: "white",
+    padding: "30px",
+    fontFamily: "sans-serif",
+  },
+
+  title: {
+    fontSize: "28px",
+    fontWeight: "700",
+    marginBottom: "20px",
+  },
+
+  money: {
+    fontSize: "64px",
+    color: "#22c55e",
+    fontWeight: "700",
+  },
+
+  sub: {
+    color: "#9ca3af",
+    marginBottom: "10px",
+  },
+
+  rate: {
+    color: "#22c55e",
+    marginBottom: "5px",
+  },
+
+  takehome: {
+    marginBottom: "10px",
+  },
+
+  payday: {
+    marginBottom: "15px",
+    color: "#9ca3af",
+  },
+
+  progressLabel: {
+    marginBottom: "5px",
+  },
+
+  progressBar: {
+    height: "10px",
+    background: "#1e293b",
+    borderRadius: "10px",
+    marginBottom: "20px",
+  },
+
+  progressFill: {
+    height: "10px",
+    background: "#22c55e",
+    borderRadius: "10px",
+  },
+
+  card: {
+    background: "#1e2b3f",
+    padding: "20px",
+    borderRadius: "12px",
+    marginBottom: "15px",
+  },
+
+  cardValue: {
+    fontSize: "20px",
+    marginTop: "5px",
+  },
+
+  button: {
+    width: "100%",
+    padding: "18px",
+    borderRadius: "14px",
+    border: "none",
+    fontSize: "18px",
+    fontWeight: "700",
+    color: "white",
+    marginTop: "20px",
+  },
+};

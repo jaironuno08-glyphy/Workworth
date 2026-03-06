@@ -1,0 +1,18 @@
+body{
+margin:0;
+font-family:system-ui;
+background:#0b1c2c;
+color:white;
+}
+
+button{
+cursor:pointer;
+border:none;
+border-radius:8px;
+padding:12px 18px;
+font-size:16px;
+}
+
+button:disabled{
+opacity:0.4;
+}
