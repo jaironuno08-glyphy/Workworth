@@ -26,8 +26,14 @@ jobs:
       - name: Install Capacitor
         run: npm install @capacitor/core @capacitor/cli @capacitor/android
 
+      - name: Initialize Capacitor
+        run: npx cap init workworth com.workworth.app --web-dir=dist
+
+      - name: Add Android
+        run: npx cap add android
+
       - name: Sync Android
-        run: npx cap sync android
+        run: npx cap sync
 
       - name: Build APK
         run: |
