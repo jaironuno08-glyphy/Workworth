@@ -44,11 +44,6 @@ jobs:
           cd android
           ./gradlew assembleDebug
 
-      - name: Build APK
-        run: |
-          cd android
-          ./gradlew assembleDebug
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
