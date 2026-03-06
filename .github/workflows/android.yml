@@ -1,34 +1,38 @@
 name: Build Android APK
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: npm install
 
-      - name: Build web app
+      - name: Build Web App
         run: npm run build
 
       - name: Install Capacitor
         run: npm install @capacitor/core @capacitor/cli @capacitor/android
 
-      - name: Sync Android
-        run: npx cap sync android
+      - name: Initialize Capacitor
+        run: |
+          npx cap init WorkWorth com.workworth.app --web-dir=dist
+          npx cap add android
+          npx cap sync
 
       - name: Build APK
         run: |
