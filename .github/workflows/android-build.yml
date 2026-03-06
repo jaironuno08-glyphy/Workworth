@@ -30,10 +30,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-
-      - name: Sync Capacitor
-        run: npx cap sync android
-
+      
+      - name: Setup Capacitor Android
+        run: |
+             npx cap add android || true
+             npx cap sync android
       - name: Build APK
         run: |
           cd android
